@@ -3,7 +3,7 @@ import pandas as pd
 import os
 import shutil
 from datetime import datetime, timedelta
-import plotly.graph_objs as go
+from plotly.graph_objs import Scatter, Layout, Figure
 from plotly.offline import plot
 from jinja2 import Template
 
@@ -14,6 +14,8 @@ s3 = boto3.client('s3')
 # Constants
 TABLE_NAME = 'ProgressTracker'
 BUCKET_NAME = 's33ding-progress'
+BASE_URL = f'https://{BUCKET_NAME}.s3.amazonaws.com'
+
 ITEM_TEMPLATE = '''
 <html>
 <head><title>Progress Report</title>
@@ -62,16 +64,25 @@ ITEM_TEMPLATE = '''
 </head>
 <body>
 <h1>Progress for {{ item_id }}</h1>
+
 <table>
 <tr><th>Timestamp</th><th>Progress (%)</th></tr>
 {% for row in data %}
-<tr><td>{{ row['Timestamp'] }}</td><td>{{ row['ProgressPercentage'] }}</td></tr>
+<tr>
+    <td>{{ row['Timestamp'] }}</td>
+    <td>{{ row['ProgressPercentage'] }}</td>
+</tr>
 {% endfor %}
 </table>
-<div class="graph-container">{{ graph_div | safe }}</div>
+
+<div class="graph-container">
+    {{ graph_div | safe }}
+</div>
+
 </body>
 </html>
 '''
+
 
 HOMEPAGE_TEMPLATE = '''
 <html>
@@ -107,48 +118,89 @@ HOMEPAGE_TEMPLATE = '''
     a:hover {
         color: #ff4081;
     }
+    .links-container {
+        display: block;
+        margin-top: 40px;
+        text-align: center;
+        font-size: 1.2em;
+    }
+    .subtle-links a {
+        color: #9e9e9e;
+        font-size: 1em;
+        opacity: 0.8;
+        transition: color 0.3s, opacity 0.3s;
+    }
+    .subtle-links a:hover {
+        color: #ff4081;
+        opacity: 1;
+    }
+    table {
+        width: 90%;
+        margin: 40px auto;
+        border-collapse: collapse;
+    }
+    table, th, td {
+        border: 2px solid #00b7ff;
+        color: #f0f0f0;
+    }
+    th, td {
+        padding: 10px;
+        text-align: center;
+    }
+    th {
+        background-color: #333;
+    }
+    td {
+        background-color: #444;
+    }
 </style>
 </head>
 <body>
 <h1>Tracked Items</h1>
 <ul>
 {% for item_id in item_ids %}
-<li><a href="{{ item_id }}/index.html">{{ item_id }}</a></li>
+<li><a href="{{ base_url }}/{{ item_id }}/index.html">{{ item_id }}</a></li>
 {% endfor %}
 </ul>
+
+
+
+<div class="graph-container">
+    <h2 style="text-align:center;">Latest Progress Overview</h2>
+    <table>
+        <tr><th>Item ID</th><th>Latest Timestamp</th><th>Progress (%)</th></tr>
+        {% for row in latest_progress %}
+        <tr>
+            <td><a href="{{ base_url }}/{{ row['ItemID'] }}/index.html">{{ row['ItemID'] }}</a></td>
+            <td>{{ row['Timestamp'] }}</td>
+            <td>{{ row['ProgressPercentage'] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+
+<div class="links-container subtle-links">
+    <a href="https://github.com/s33ding?tab=projects" target="_blank">View my GitHub Projects</a><br><br>
+    <a href="https://robertomdiniz.s3.amazonaws.com/accomplishments.html" target="_blank">View my Accomplishments</a><br><br>
+    <a href="https://robertomdiniz.s3.amazonaws.com/roberto-resume.pdf" target="_blank">View my Resume</a>
+</div>
+
 </body>
 </html>
 '''
 
 def create_progress_graph(df, item_id):
-    # Create a trace for the plot with line and markers
-    trace = go.Scatter(
-        x=df['Timestamp'], 
-        y=df['ProgressPercentage'], 
-        mode='lines+markers', 
-        name='Progress'
-    )
-
-    # Define layout with y-axis range from 0 to 100 for progress percentage
-    layout = go.Layout(
-        title=f'Progress Over Time - {item_id}',
-        xaxis=dict(title='Time'),
-        yaxis=dict(title='Progress %', range=[0, 100]),  # Fixed y-axis range 0 to 100
-    )
-
-    # Create figure with the data and layout
-    fig = go.Figure(data=[trace], layout=layout)
-
-    # Generate and return the HTML div for embedding the plot
-    graph_div = plot(fig, output_type='div', include_plotlyjs='cdn')
-    return graph_div
+    trace = Scatter(x=df['Timestamp'], y=df['ProgressPercentage'], mode='lines+markers', name='Progress')
+    layout = Layout(title=f'Progress Over Time - {item_id}', xaxis=dict(title='Time'), yaxis=dict(title='Progress %', range=[0, 100]))
+    fig = Figure(data=[trace], layout=layout)
+    return plot(fig, output_type='div', include_plotlyjs='cdn')
 
 def write_progress():
     table = dynamodb.Table(TABLE_NAME)
     response = table.scan(ProjectionExpression='ItemID')
     item_ids = sorted(set(item['ItemID'] for item in response['Items']))
     if not item_ids:
-        print("No items found. Please create one first.")
+        print("No items found.")
         return
 
     print("Select an existing item:")
@@ -157,18 +209,11 @@ def write_progress():
     selected = int(input("Enter the number: ")) - 1
     item_id = item_ids[selected]
 
-    progress = int(input("Enter current progress % (e.g., 72): "))
+    progress = int(input("Enter current progress %: "))
     timestamp = (datetime.utcnow() - timedelta(hours=3)).isoformat()
 
-    table.put_item(Item={
-        'ItemID': item_id,
-        'Timestamp': timestamp,
-        'ProgressPercentage': progress
-    })
-
-    response = table.query(
-        KeyConditionExpression=boto3.dynamodb.conditions.Key('ItemID').eq(item_id)
-    )
+    table.put_item(Item={'ItemID': item_id, 'Timestamp': timestamp, 'ProgressPercentage': progress})
+    response = table.query(KeyConditionExpression=boto3.dynamodb.conditions.Key('ItemID').eq(item_id))
     items = sorted(response['Items'], key=lambda x: x['Timestamp'])
 
     df = pd.DataFrame(items)
@@ -176,42 +221,28 @@ def write_progress():
     df['ProgressPercentage'] = df['ProgressPercentage'].astype(int)
 
     os.makedirs(f'temp/{item_id}', exist_ok=True)
-
-    # Create the progress graph
     graph_div = create_progress_graph(df, item_id)
-
-    # Generate HTML content for the progress report
     html = Template(ITEM_TEMPLATE).render(item_id=item_id, data=items, graph_div=graph_div)
     with open(f'temp/{item_id}/index.html', 'w') as f:
         f.write(html)
 
-    # Upload to S3
     s3.upload_file(f'temp/{item_id}/index.html', BUCKET_NAME, f'{item_id}/index.html', ExtraArgs={'ContentType': 'text/html'})
-
     shutil.rmtree(f'temp/{item_id}')
     generate_homepage()
-
-    print(f"Progress uploaded to: https://{BUCKET_NAME}.s3.amazonaws.com/{item_id}/index.html")
-
+    print(f"Uploaded: {BASE_URL}/{item_id}/index.html")
 
 def create_item():
     item_id = input("Enter new ItemID: ")
     table = dynamodb.Table(TABLE_NAME)
     timestamp = (datetime.utcnow() - timedelta(hours=3)).isoformat()
-    table.put_item(Item={
-        'ItemID': item_id,
-        'Timestamp': timestamp,
-        'ProgressPercentage': 0
-    })
+    table.put_item(Item={'ItemID': item_id, 'Timestamp': timestamp, 'ProgressPercentage': 0})
     print(f"Item {item_id} created.")
     generate_homepage()
-
 
 def delete_item():
     table = dynamodb.Table(TABLE_NAME)
     items = table.scan()['Items']
     unique_ids = sorted(set(item['ItemID'] for item in items))
-
     if not unique_ids:
         print("No items to delete.")
         return
@@ -219,7 +250,6 @@ def delete_item():
     print("Existing Items:")
     for i, item_id in enumerate(unique_ids):
         print(f"{i + 1}. {item_id}")
-
     index = int(input("Select item to delete: ")) - 1
     confirm = input(f"Type DELETE to confirm deletion of '{unique_ids[index]}': ")
     if confirm != 'DELETE':
@@ -236,9 +266,8 @@ def delete_item():
         for obj in s3_objects['Contents']:
             s3.delete_object(Bucket=BUCKET_NAME, Key=obj['Key'])
 
-    print(f"Item '{item_id}' deleted from DynamoDB and S3.")
+    print(f"Deleted '{item_id}' from DynamoDB and S3.")
     generate_homepage()
-
 
 def print_urls():
     table = dynamodb.Table(TABLE_NAME)
@@ -250,33 +279,45 @@ def print_urls():
 
     print("\nPublished URLs:")
     for item_id in unique_ids:
-        print(f"- https://{BUCKET_NAME}.s3.amazonaws.com/{item_id}/index.html")
-    print(f"\nHomepage: https://{BUCKET_NAME}.s3.amazonaws.com/index.html")
-
+        print(f"- {BASE_URL}/{item_id}/index.html")
+    print(f"\nHomepage: {BASE_URL}/index.html")
 
 def generate_homepage():
     table = dynamodb.Table(TABLE_NAME)
-    items = table.scan(ProjectionExpression='ItemID')['Items']
-    item_ids = sorted(set(item['ItemID'] for item in items))
-    html = Template(HOMEPAGE_TEMPLATE).render(item_ids=item_ids)
+    response = table.scan()
+    items = response['Items']
+    item_ids = sorted(set(item["ItemID"] for item in items))
+
+    latest_entries = {}
+    for item in items:
+        item_id = item['ItemID']
+        ts = item['Timestamp']
+        if (item_id not in latest_entries) or (ts > latest_entries[item_id]['Timestamp']):
+            latest_entries[item_id] = item
+
+    latest_progress = sorted(latest_entries.values(), key=lambda x: x['ProgressPercentage'], reverse=True)
+
+
+    html = Template(HOMEPAGE_TEMPLATE).render(
+        item_ids=item_ids,
+        latest_progress=latest_progress,
+        base_url=BASE_URL
+    )
+
+    os.makedirs("temp", exist_ok=True)
     with open('temp/index.html', 'w') as f:
         f.write(html)
     s3.upload_file('temp/index.html', BUCKET_NAME, 'index.html', ExtraArgs={'ContentType': 'text/html'})
     os.remove('temp/index.html')
 
-
 def update_all_pages():
-    print("Updating all pages without inserting new data...")
-
-    # Regenerate all progress pages
+    print("Updating all pages...")
     table = dynamodb.Table(TABLE_NAME)
     response = table.scan(ProjectionExpression='ItemID')
     item_ids = sorted(set(item['ItemID'] for item in response['Items']))
 
     for item_id in item_ids:
-        response = table.query(
-            KeyConditionExpression=boto3.dynamodb.conditions.Key('ItemID').eq(item_id)
-        )
+        response = table.query(KeyConditionExpression=boto3.dynamodb.conditions.Key('ItemID').eq(item_id))
         items = sorted(response['Items'], key=lambda x: x['Timestamp'])
 
         df = pd.DataFrame(items)
@@ -284,22 +325,15 @@ def update_all_pages():
         df['ProgressPercentage'] = df['ProgressPercentage'].astype(int)
 
         os.makedirs(f'temp/{item_id}', exist_ok=True)
-
-        # Create the progress graph
         graph_div = create_progress_graph(df, item_id)
-
-        # Generate HTML content for the progress report
         html = Template(ITEM_TEMPLATE).render(item_id=item_id, data=items, graph_div=graph_div)
         with open(f'temp/{item_id}/index.html', 'w') as f:
             f.write(html)
 
-        # Upload to S3
         s3.upload_file(f'temp/{item_id}/index.html', BUCKET_NAME, f'{item_id}/index.html', ExtraArgs={'ContentType': 'text/html'})
         shutil.rmtree(f'temp/{item_id}')
 
-    # Regenerate the homepage
     generate_homepage()
-
 
 def main():
     while True:
@@ -327,8 +361,7 @@ Choose an action:
             print("Goodbye!")
             break
         else:
-            print("Invalid option. Please try again.")
-
+            print("Invalid option. Try again.")
 
 if __name__ == '__main__':
     main()

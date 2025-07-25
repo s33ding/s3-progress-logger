@@ -21,7 +21,6 @@ A cloud-native CLI tool to track and visualize daily progress using AWS services
 
 | Component         | Tool/Service           |
 |------------------|------------------------|
-| CLI              | Python (no argparse)   |
 | Visualization    | Plotly                 |
 | Templating       | Jinja2                 |
 | Data Store       | DynamoDB               |
