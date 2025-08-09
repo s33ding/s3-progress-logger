@@ -62,6 +62,34 @@ ITEM_TEMPLATE = '''
         padding: 20px;
         background-color: #333;
     }
+    /* Home button */
+    .home-nav {
+        width: 90%;
+        max-width: 800px;
+        margin: 24px auto 60px;
+        display: flex;
+        justify-content: center;
+    }
+    .home-btn {
+        display: inline-block;
+        padding: 12px 18px;
+        border: 2px solid #00b7ff;
+        border-radius: 10px;
+        text-decoration: none;
+        color: #00b7ff;
+        font-weight: 600;
+        background: transparent;
+        transition: transform .05s ease, background-color .2s ease, color .2s ease;
+    }
+    .home-btn:hover,
+    .home-btn:focus {
+        background-color: #00b7ff;
+        color: #1b1b1b;
+        outline: none;
+    }
+    .home-btn:active {
+        transform: translateY(1px);
+    }
 </style>
 </head>
 <body>
@@ -81,9 +109,14 @@ ITEM_TEMPLATE = '''
     {{ graph_div | safe }}
 </div>
 
+<div class="home-nav">
+    <a class="home-btn" href="https://s33ding-progress.s3.amazonaws.com/index.html" aria-label="Go to homepage">← Home</a>
+</div>
+
 </body>
 </html>
 '''
+
 
 
 HOMEPAGE_TEMPLATE = '''
