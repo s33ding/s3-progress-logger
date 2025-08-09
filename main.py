@@ -266,6 +266,16 @@ def write_progress():
     generate_homepage()
     print(f"Uploaded: {BASE_URL}/{item_id}/index.html")
 
+    # NEW: open the freshly published page in Firefox
+    url = f"{BASE_URL}/{item_id}/index.html"
+    if _open_in_firefox_new_window(url):
+        print(f"Opening in Firefox: {url}")
+    else:
+        print(f"Couldn't open in Firefox automatically. Please open manually: {url}")
+
+    print(f"Uploaded: {url}")
+
+
 def create_item():
     item_id = input("Enter new ItemID: ")
     table = dynamodb.Table(TABLE_NAME)
