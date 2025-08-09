@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 from plotly.graph_objs import Scatter, Layout, Figure
 from plotly.offline import plot
 from jinja2 import Template
+import subprocess
+import webbrowser
 
 # AWS Resources
 dynamodb = boto3.resource('dynamodb')
@@ -269,18 +271,84 @@ def delete_item():
     print(f"Deleted '{item_id}' from DynamoDB and S3.")
     generate_homepage()
 
+
+def _open_in_firefox_new_window(url: str) -> bool:
+    """Linux-only: open URL in Firefox as a new window; return True on success."""
+    # 1) Native Firefox on PATH
+    exe = shutil.which("firefox")
+    if exe:
+        try:
+            subprocess.Popen([exe, "--new-window", url])
+            return True
+        except Exception:
+            pass
+
+    # 2) Flatpak Firefox
+    if shutil.which("flatpak"):
+        try:
+            subprocess.Popen(["flatpak", "run", "org.mozilla.firefox", "--new-window", url])
+            return True
+        except Exception:
+            pass
+
+    # 3) Snap Firefox
+    if shutil.which("snap"):
+        try:
+            subprocess.Popen(["snap", "run", "firefox", "--new-window", url])
+            return True
+        except Exception:
+            pass
+
+    # 4) Last resort: whatever the system default is
+    try:
+        webbrowser.open(url, new=1)
+        return True
+    except Exception:
+        return False
+
+
 def print_urls():
     table = dynamodb.Table(TABLE_NAME)
-    items = table.scan(ProjectionExpression='ItemID')['Items']
-    unique_ids = sorted(set(item['ItemID'] for item in items))
+    items = table.scan(ProjectionExpression='ItemID').get('Items', [])
+    unique_ids = sorted({item.get('ItemID') for item in items if 'ItemID' in item})
+
     if not unique_ids:
         print("No items found.")
         return
 
+    urls = [f"{BASE_URL}/{item_id}/index.html" for item_id in unique_ids]
+    homepage = f"{BASE_URL}/index.html"
+
     print("\nPublished URLs:")
-    for item_id in unique_ids:
-        print(f"- {BASE_URL}/{item_id}/index.html")
-    print(f"\nHomepage: {BASE_URL}/index.html")
+    for i, url in enumerate(urls, start=1):
+        print(f"{i}. {url}")
+    print(f"h. Homepage: {homepage}")
+
+    choice = input("\nChoose one to open in Firefox (number, 'h' for homepage, or Enter to skip): ").strip().lower()
+    if not choice:
+        print("Skipping open.")
+        return
+
+    target = None
+    if choice == 'h':
+        target = homepage
+    else:
+        try:
+            idx = int(choice)
+            if 1 <= idx <= len(urls):
+                target = urls[idx - 1]
+        except ValueError:
+            pass
+
+    if not target:
+        print("Invalid selection.")
+        return
+
+    if _open_in_firefox_new_window(target):
+        print(f"Opening in Firefox: {target}")
+    else:
+        print(f"Couldn't open in Firefox automatically. Please open manually: {target}")
+
 
 def generate_homepage():
     table = dynamodb.Table(TABLE_NAME)
