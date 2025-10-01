@@ -10,8 +10,9 @@ import subprocess
 import webbrowser
 
 # AWS Resources
-dynamodb = boto3.resource('dynamodb')
-s3 = boto3.client('s3')
+session = boto3.Session(profile_name='s33ding')
+dynamodb = session.resource('dynamodb')
+s3 = session.client('s3')
 
 # Constants
 TABLE_NAME = 'ProgressTracker'
