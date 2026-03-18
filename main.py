@@ -10,7 +10,7 @@ import subprocess
 import webbrowser
 
 # AWS Resources
-session = boto3.Session(profile_name='s33ding')
+session = boto3.Session(profile_name='s33ding', region_name='us-east-1')
 dynamodb = session.resource('dynamodb')
 s3 = session.client('s3')
 
@@ -21,7 +21,9 @@ BASE_URL = f'https://{BUCKET_NAME}.s3.amazonaws.com'
 
 ITEM_TEMPLATE = '''
 <html>
-<head><title>Progress Report</title>
+<head>
+<meta charset="UTF-8">
+<title>Progress Report</title>
 <style>
     body {
         background-color: #1b1b1b;
@@ -94,7 +96,6 @@ ITEM_TEMPLATE = '''
 </style>
 </head>
 <body>
-<h1>Progress for {{ item_id }}</h1>
 
 <table>
 <tr><th>Timestamp</th><th>Progress (%)</th></tr>
@@ -122,105 +123,257 @@ ITEM_TEMPLATE = '''
 
 HOMEPAGE_TEMPLATE = '''
 <html>
-<head><title>All Progress Items</title>
+<head>
+<meta charset="UTF-8">
+<title>Progress Tracker</title>
 <style>
+    * { box-sizing: border-box; }
     body {
-        background-color: #1b1b1b;
-        font-family: 'Arial', sans-serif;
+        background: linear-gradient(135deg, #0f0f0f 0%, #1b1b1b 100%);
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         color: #f0f0f0;
         margin: 0;
-        padding: 0;
+        padding: 20px;
+        min-height: 100vh;
+    }
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
     }
     h1 {
         text-align: center;
         color: #00b7ff;
-        font-size: 3em;
-        margin-top: 50px;
+        font-size: 2.8em;
+        margin: 30px 0 20px;
+        text-shadow: 0 0 20px rgba(0, 183, 255, 0.3);
     }
-    ul {
-        list-style-type: none;
-        padding: 0;
-        text-align: center;
+    .search-box {
+        max-width: 400px;
+        margin: 0 auto 30px;
+        position: relative;
     }
-    li {
-        margin: 20px 0;
-    }
-    a {
-        color: #00b7ff;
-        font-size: 1.5em;
-        text-decoration: none;
-        transition: color 0.3s;
-    }
-    a:hover {
-        color: #ff4081;
-    }
-    .links-container {
-        display: block;
-        margin-top: 40px;
-        text-align: center;
-        font-size: 1.2em;
-    }
-    .subtle-links a {
-        color: #9e9e9e;
+    .search-box input {
+        width: 100%;
+        padding: 12px 16px;
+        background: rgba(30, 30, 30, 0.6);
+        border: 2px solid rgba(0, 183, 255, 0.3);
+        border-radius: 8px;
+        color: #f0f0f0;
         font-size: 1em;
-        opacity: 0.8;
-        transition: color 0.3s, opacity 0.3s;
+        transition: border-color 0.3s;
     }
-    .subtle-links a:hover {
-        color: #ff4081;
-        opacity: 1;
+    .search-box input:focus {
+        outline: none;
+        border-color: #00b7ff;
+    }
+    .search-box input::placeholder {
+        color: #888;
+    }
+    .table-wrapper {
+        background: rgba(30, 30, 30, 0.6);
+        border-radius: 12px;
+        padding: 30px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(10px);
+        margin-bottom: 50px;
     }
     table {
-        width: 90%;
-        margin: 40px auto;
+        width: 100%;
         border-collapse: collapse;
-    }
-    table, th, td {
-        border: 2px solid #00b7ff;
-        color: #f0f0f0;
-    }
-    th, td {
-        padding: 10px;
-        text-align: center;
+        border-radius: 8px;
+        overflow: hidden;
     }
     th {
-        background-color: #333;
+        background: linear-gradient(135deg, #00b7ff 0%, #0088cc 100%);
+        color: #fff;
+        padding: 16px;
+        text-align: left;
+        font-weight: 600;
+        font-size: 1.1em;
+        cursor: pointer;
+        user-select: none;
+        position: relative;
+    }
+    th:hover {
+        background: linear-gradient(135deg, #00d4ff 0%, #009ddd 100%);
+    }
+    th::after {
+        content: ' ⇅';
+        opacity: 0.5;
+        font-size: 0.9em;
+    }
+    th.sort-asc::after {
+        content: ' ↑';
+        opacity: 1;
+    }
+    th.sort-desc::after {
+        content: ' ↓';
+        opacity: 1;
     }
     td {
-        background-color: #444;
+        padding: 14px 16px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    tr:hover td {
+        background: rgba(0, 183, 255, 0.1);
+    }
+    tr:last-child td {
+        border-bottom: none;
+    }
+    td a {
+        color: #00b7ff;
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.2s;
+    }
+    td a:hover {
+        color: #ff4081;
+    }
+    .progress-bar {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        height: 24px;
+        overflow: hidden;
+        position: relative;
+    }
+    .progress-fill {
+        background: linear-gradient(90deg, #00b7ff 0%, #00ff88 100%);
+        height: 100%;
+        border-radius: 10px;
+        transition: width 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-weight: 600;
+        font-size: 0.85em;
+    }
+    .timestamp {
+        color: #aaa;
+        font-size: 0.95em;
+    }
+    .links-container {
+        text-align: center;
+        margin: 60px 0 40px;
+        padding: 30px;
+        background: rgba(30, 30, 30, 0.4);
+        border-radius: 12px;
+    }
+    .links-container a {
+        color: #9e9e9e;
+        text-decoration: none;
+        margin: 0 20px;
+        font-size: 1em;
+        transition: color 0.3s;
+        display: inline-block;
+        padding: 8px 0;
+    }
+    .links-container a:hover {
+        color: #00b7ff;
+    }
+    .no-results {
+        text-align: center;
+        padding: 40px;
+        color: #888;
+        font-size: 1.1em;
     }
 </style>
 </head>
 <body>
-<h1>Tracked Items</h1>
-<ul>
-{% for item_id in item_ids %}
-<li><a href="{{ base_url }}/{{ item_id }}/index.html">{{ item_id }}</a></li>
-{% endfor %}
-</ul>
+<div class="container">
+    <h1>📊 Progress Tracker</h1>
+    
+    <div class="search-box">
+        <input type="text" id="searchInput" placeholder="🔍 Filter items..." onkeyup="filterTable()">
+    </div>
+    
+    <div class="table-wrapper">
+        <table id="dataTable">
+            <thead>
+                <tr>
+                    <th onclick="sortTable(0)">Item</th>
+                    <th onclick="sortTable(1)">Last Updated</th>
+                    <th onclick="sortTable(2)">Progress</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in latest_progress %}
+                <tr>
+                    <td><a href="{{ base_url }}/{{ row['ItemID'] }}/index.html">{{ row['ItemID'] }}</a></td>
+                    <td class="timestamp" data-timestamp="{{ row['Timestamp'] }}">{{ row['Timestamp'][:19].replace('T', ' ') }}</td>
+                    <td data-progress="{{ row['ProgressPercentage'] }}">
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: {{ row['ProgressPercentage'] }}%">
+                                {{ row['ProgressPercentage'] }}%
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div id="noResults" class="no-results" style="display:none;">No items found</div>
+    </div>
 
-
-
-<div class="graph-container">
-    <h2 style="text-align:center;">Latest Progress Overview</h2>
-    <table>
-        <tr><th>Item ID</th><th>Latest Timestamp</th><th>Progress (%)</th></tr>
-        {% for row in latest_progress %}
-        <tr>
-            <td><a href="{{ base_url }}/{{ row['ItemID'] }}/index.html">{{ row['ItemID'] }}</a></td>
-            <td>{{ row['Timestamp'] }}</td>
-            <td>{{ row['ProgressPercentage'] }}</td>
-        </tr>
-        {% endfor %}
-    </table>
+    <div class="links-container">
+        <a href="https://github.com/s33ding?tab=projects" target="_blank">GitHub Projects</a>
+        <a href="https://robertomdiniz.s3.amazonaws.com/accomplishments.html" target="_blank">Accomplishments</a>
+        <a href="https://robertomdiniz.s3.amazonaws.com/index.html" target="_blank">Resume</a>
+    </div>
 </div>
 
-<div class="links-container subtle-links">
-    <a href="https://github.com/s33ding?tab=projects" target="_blank">View my GitHub Projects</a><br><br>
-    <a href="https://robertomdiniz.s3.amazonaws.com/accomplishments.html" target="_blank">View my Accomplishments</a><br><br>
-    <a href="https://robertomdiniz.s3.amazonaws.com/roberto-resume.pdf" target="_blank">View my Resume</a>
-</div>
+<script>
+let sortDir = [1, -1, 1];
 
+function sortTable(col) {
+    const table = document.getElementById('dataTable');
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const headers = table.querySelectorAll('th');
+    
+    headers.forEach((h, i) => {
+        h.className = i === col ? (sortDir[col] === 1 ? 'sort-asc' : 'sort-desc') : '';
+    });
+    
+    rows.sort((a, b) => {
+        let aVal, bVal;
+        if (col === 0) {
+            aVal = a.cells[0].textContent.trim().toLowerCase();
+            bVal = b.cells[0].textContent.trim().toLowerCase();
+        } else if (col === 1) {
+            aVal = a.cells[1].dataset.timestamp;
+            bVal = b.cells[1].dataset.timestamp;
+        } else {
+            aVal = parseInt(a.cells[2].dataset.progress);
+            bVal = parseInt(b.cells[2].dataset.progress);
+        }
+        return (aVal > bVal ? 1 : -1) * sortDir[col];
+    });
+    
+    sortDir[col] *= -1;
+    rows.forEach(row => tbody.appendChild(row));
+}
+
+function filterTable() {
+    const input = document.getElementById('searchInput').value.toLowerCase();
+    const tbody = document.querySelector('#dataTable tbody');
+    const rows = tbody.querySelectorAll('tr');
+    let visibleCount = 0;
+    
+    rows.forEach(row => {
+        const text = row.cells[0].textContent.toLowerCase();
+        if (text.includes(input)) {
+            row.style.display = '';
+            visibleCount++;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+    
+    document.getElementById('noResults').style.display = visibleCount === 0 ? 'block' : 'none';
+    tbody.style.display = visibleCount === 0 ? 'none' : '';
+}
+</script>
 </body>
 </html>
 '''
@@ -244,6 +397,7 @@ def write_progress():
         print(f"{idx + 1}. {item_id}")
     selected = int(input("Enter the number: ")) - 1
     item_id = item_ids[selected]
+    print(f"Selected: {selected + 1}. {item_id}")
 
     progress = int(input("Enter current progress %: "))
     timestamp = (datetime.utcnow() - timedelta(hours=3)).isoformat()
@@ -407,7 +561,7 @@ def generate_homepage():
         if (item_id not in latest_entries) or (ts > latest_entries[item_id]['Timestamp']):
             latest_entries[item_id] = item
 
-    latest_progress = sorted(latest_entries.values(), key=lambda x: x['ProgressPercentage'], reverse=True)
+    latest_progress = sorted(latest_entries.values(), key=lambda x: x['Timestamp'], reverse=True)
 
 
     html = Template(HOMEPAGE_TEMPLATE).render(
