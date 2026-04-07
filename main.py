@@ -2,12 +2,13 @@ import boto3
 import pandas as pd
 import os
 import shutil
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from plotly.graph_objs import Scatter, Layout, Figure
 from plotly.offline import plot
-from jinja2 import Template
+from jinja2 import Template, Environment
 import subprocess
 import webbrowser
+from urllib.parse import quote
 
 # AWS Resources
 session = boto3.Session(profile_name='s33ding', region_name='us-east-1')
@@ -34,7 +35,7 @@ ITEM_TEMPLATE = '''
     }
     h1 {
         text-align: center;
-        color: #00b7ff;
+        color: #66bb6a;
         font-size: 2.5em;
         padding-top: 50px;
     }
@@ -44,7 +45,7 @@ ITEM_TEMPLATE = '''
         border-collapse: collapse;
     }
     table, th, td {
-        border: 2px solid #00b7ff;
+        border: 2px solid #66bb6a;
         color: #f0f0f0;
     }
     th, td {
@@ -61,7 +62,7 @@ ITEM_TEMPLATE = '''
         margin: 50px auto;
         width: 90%;
         max-width: 800px;
-        border: 2px solid #00b7ff;
+        border: 2px solid #66bb6a;
         padding: 20px;
         background-color: #333;
     }
@@ -76,17 +77,17 @@ ITEM_TEMPLATE = '''
     .home-btn {
         display: inline-block;
         padding: 12px 18px;
-        border: 2px solid #00b7ff;
+        border: 2px solid #66bb6a;
         border-radius: 10px;
         text-decoration: none;
-        color: #00b7ff;
+        color: #66bb6a;
         font-weight: 600;
         background: transparent;
         transition: transform .05s ease, background-color .2s ease, color .2s ease;
     }
     .home-btn:hover,
     .home-btn:focus {
-        background-color: #00b7ff;
+        background-color: #66bb6a;
         color: #1b1b1b;
         outline: none;
     }
@@ -142,10 +143,10 @@ HOMEPAGE_TEMPLATE = '''
     }
     h1 {
         text-align: center;
-        color: #00b7ff;
+        color: #66bb6a;
         font-size: 2.8em;
         margin: 30px 0 20px;
-        text-shadow: 0 0 20px rgba(0, 183, 255, 0.3);
+        text-shadow: 0 0 20px rgba(102, 187, 106, 0.3);
     }
     .search-box {
         max-width: 400px;
@@ -156,7 +157,7 @@ HOMEPAGE_TEMPLATE = '''
         width: 100%;
         padding: 12px 16px;
         background: rgba(30, 30, 30, 0.6);
-        border: 2px solid rgba(0, 183, 255, 0.3);
+        border: 2px solid rgba(102, 187, 106, 0.3);
         border-radius: 8px;
         color: #f0f0f0;
         font-size: 1em;
@@ -164,7 +165,7 @@ HOMEPAGE_TEMPLATE = '''
     }
     .search-box input:focus {
         outline: none;
-        border-color: #00b7ff;
+        border-color: #66bb6a;
     }
     .search-box input::placeholder {
         color: #888;
@@ -184,7 +185,7 @@ HOMEPAGE_TEMPLATE = '''
         overflow: hidden;
     }
     th {
-        background: linear-gradient(135deg, #00b7ff 0%, #0088cc 100%);
+        background: linear-gradient(135deg, #66bb6a 0%, #4a8a4e 100%);
         color: #fff;
         padding: 16px;
         text-align: left;
@@ -195,7 +196,7 @@ HOMEPAGE_TEMPLATE = '''
         position: relative;
     }
     th:hover {
-        background: linear-gradient(135deg, #00d4ff 0%, #009ddd 100%);
+        background: linear-gradient(135deg, #81c784 0%, #5a9e5e 100%);
     }
     th::after {
         content: ' ⇅';
@@ -215,13 +216,13 @@ HOMEPAGE_TEMPLATE = '''
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
     tr:hover td {
-        background: rgba(0, 183, 255, 0.1);
+        background: rgba(102, 187, 106, 0.1);
     }
     tr:last-child td {
         border-bottom: none;
     }
     td a {
-        color: #00b7ff;
+        color: #66bb6a;
         text-decoration: none;
         font-weight: 500;
         transition: color 0.2s;
@@ -237,7 +238,7 @@ HOMEPAGE_TEMPLATE = '''
         position: relative;
     }
     .progress-fill {
-        background: linear-gradient(90deg, #00b7ff 0%, #00ff88 100%);
+        background: linear-gradient(90deg, #66bb6a 0%, #a5d6a7 100%);
         height: 100%;
         border-radius: 10px;
         transition: width 0.3s ease;
@@ -269,7 +270,7 @@ HOMEPAGE_TEMPLATE = '''
         padding: 8px 0;
     }
     .links-container a:hover {
-        color: #00b7ff;
+        color: #66bb6a;
     }
     .no-results {
         text-align: center;
@@ -281,7 +282,7 @@ HOMEPAGE_TEMPLATE = '''
 </head>
 <body>
 <div class="container">
-    <h1>📊 Progress Tracker</h1>
+    <h1>🌱 Progress Tracker</h1>
     
     <div class="search-box">
         <input type="text" id="searchInput" placeholder="🔍 Filter items..." onkeyup="filterTable()">
@@ -299,7 +300,7 @@ HOMEPAGE_TEMPLATE = '''
             <tbody>
                 {% for row in latest_progress %}
                 <tr>
-                    <td><a href="{{ base_url }}/{{ row['ItemID'] }}/index.html">{{ row['ItemID'] }}</a></td>
+                    <td><a href="{{ base_url }}/{{ row['ItemID'] | urlencode }}/index.html">{{ row['ItemID'] }}</a></td>
                     <td class="timestamp" data-timestamp="{{ row['Timestamp'] }}">{{ row['Timestamp'][:19].replace('T', ' ') }}</td>
                     <td data-progress="{{ row['ProgressPercentage'] }}">
                         <div class="progress-bar">
@@ -379,8 +380,12 @@ function filterTable() {
 '''
 
 def create_progress_graph(df, item_id):
-    trace = Scatter(x=df['Timestamp'], y=df['ProgressPercentage'], mode='lines+markers', name='Progress')
-    layout = Layout(title=f'Progress Over Time - {item_id}', xaxis=dict(title='Time'), yaxis=dict(title='Progress %', range=[0, 100]))
+    trace = Scatter(x=df['Timestamp'], y=df['ProgressPercentage'], mode='lines+markers', name='Progress',
+                    line=dict(color='#66bb6a'), marker=dict(color='#66bb6a'))
+    layout = Layout(title=dict(text=f'Progress Over Time - {item_id}', font=dict(color='#f0f0f0')),
+                    xaxis=dict(title='Time', color='#aaa', gridcolor='#444'),
+                    yaxis=dict(title='Progress %', range=[0, 100], color='#aaa', gridcolor='#444'),
+                    paper_bgcolor='#1b1b1b', plot_bgcolor='#1b1b1b', font=dict(color='#f0f0f0'))
     fig = Figure(data=[trace], layout=layout)
     return plot(fig, output_type='div', include_plotlyjs='cdn')
 
@@ -400,14 +405,14 @@ def write_progress():
     print(f"Selected: {selected + 1}. {item_id}")
 
     progress = int(input("Enter current progress %: "))
-    timestamp = (datetime.utcnow() - timedelta(hours=3)).isoformat()
+    timestamp = (datetime.now(timezone.utc) - timedelta(hours=3)).replace(microsecond=0).isoformat()
 
     table.put_item(Item={'ItemID': item_id, 'Timestamp': timestamp, 'ProgressPercentage': progress})
     response = table.query(KeyConditionExpression=boto3.dynamodb.conditions.Key('ItemID').eq(item_id))
     items = sorted(response['Items'], key=lambda x: x['Timestamp'])
 
     df = pd.DataFrame(items)
-    df['Timestamp'] = pd.to_datetime(df['Timestamp'])
+    df['Timestamp'] = pd.to_datetime(df['Timestamp'], format='ISO8601')
     df['ProgressPercentage'] = df['ProgressPercentage'].astype(int)
 
     os.makedirs(f'temp/{item_id}', exist_ok=True)
@@ -434,7 +439,7 @@ def write_progress():
 def create_item():
     item_id = input("Enter new ItemID: ")
     table = dynamodb.Table(TABLE_NAME)
-    timestamp = (datetime.utcnow() - timedelta(hours=3)).isoformat()
+    timestamp = (datetime.now(timezone.utc) - timedelta(hours=3)).replace(microsecond=0).isoformat()
     table.put_item(Item={'ItemID': item_id, 'Timestamp': timestamp, 'ProgressPercentage': 0})
     print(f"Item {item_id} created.")
     generate_homepage()
@@ -564,7 +569,9 @@ def generate_homepage():
     latest_progress = sorted(latest_entries.values(), key=lambda x: x['Timestamp'], reverse=True)
 
 
-    html = Template(HOMEPAGE_TEMPLATE).render(
+    env = Environment()
+    env.filters['urlencode'] = lambda s: quote(str(s), safe='')
+    html = env.from_string(HOMEPAGE_TEMPLATE).render(
         item_ids=item_ids,
         latest_progress=latest_progress,
         base_url=BASE_URL
@@ -587,7 +594,7 @@ def update_all_pages():
         items = sorted(response['Items'], key=lambda x: x['Timestamp'])
 
         df = pd.DataFrame(items)
-        df['Timestamp'] = pd.to_datetime(df['Timestamp'])
+        df['Timestamp'] = pd.to_datetime(df['Timestamp'], format='ISO8601')
         df['ProgressPercentage'] = df['ProgressPercentage'].astype(int)
 
         os.makedirs(f'temp/{item_id}', exist_ok=True)
