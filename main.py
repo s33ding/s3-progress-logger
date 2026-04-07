@@ -35,7 +35,7 @@ ITEM_TEMPLATE = '''
     }
     h1 {
         text-align: center;
-        color: #66bb6a;
+        color: #4a9e5c;
         font-size: 2.5em;
         padding-top: 50px;
     }
@@ -45,7 +45,7 @@ ITEM_TEMPLATE = '''
         border-collapse: collapse;
     }
     table, th, td {
-        border: 2px solid #66bb6a;
+        border: 2px solid #4a9e5c;
         color: #f0f0f0;
     }
     th, td {
@@ -62,9 +62,10 @@ ITEM_TEMPLATE = '''
         margin: 50px auto;
         width: 90%;
         max-width: 800px;
-        border: 2px solid #66bb6a;
+        border: 2px solid #4a9e5c;
         padding: 20px;
         background-color: #333;
+        overflow: auto;
     }
     /* Home button */
     .home-nav {
@@ -77,17 +78,17 @@ ITEM_TEMPLATE = '''
     .home-btn {
         display: inline-block;
         padding: 12px 18px;
-        border: 2px solid #66bb6a;
+        border: 2px solid #4a9e5c;
         border-radius: 10px;
         text-decoration: none;
-        color: #66bb6a;
+        color: #4a9e5c;
         font-weight: 600;
         background: transparent;
         transition: transform .05s ease, background-color .2s ease, color .2s ease;
     }
     .home-btn:hover,
     .home-btn:focus {
-        background-color: #66bb6a;
+        background-color: #4a9e5c;
         color: #1b1b1b;
         outline: none;
     }
@@ -98,6 +99,12 @@ ITEM_TEMPLATE = '''
 </head>
 <body>
 
+<h1>Progress Tracker</h1>
+<h2 style="text-align:center;color:#aaa;font-size:1.4em;margin-top:-10px;">{{ item_id }}</h2>
+<div class="graph-container">
+    {{ graph_div | safe }}
+</div>
+
 <table>
 <tr><th>Timestamp</th><th>Progress (%)</th></tr>
 {% for row in data %}
@@ -107,10 +114,6 @@ ITEM_TEMPLATE = '''
 </tr>
 {% endfor %}
 </table>
-
-<div class="graph-container">
-    {{ graph_div | safe }}
-</div>
 
 <div class="home-nav">
     <a class="home-btn" href="https://s33ding-progress.s3.amazonaws.com/index.html" aria-label="Go to homepage">← Home</a>
@@ -136,17 +139,18 @@ HOMEPAGE_TEMPLATE = '''
         margin: 0;
         padding: 20px;
         min-height: 100vh;
+        font-size: 1.15em;
     }
     .container {
-        max-width: 1200px;
+        max-width: 1600px;
         margin: 0 auto;
     }
     h1 {
         text-align: center;
-        color: #66bb6a;
+        color: #4a9e5c;
         font-size: 2.8em;
         margin: 30px 0 20px;
-        text-shadow: 0 0 20px rgba(102, 187, 106, 0.3);
+        text-shadow: 0 0 20px rgba(74, 158, 92, 0.3);
     }
     .search-box {
         max-width: 400px;
@@ -157,7 +161,7 @@ HOMEPAGE_TEMPLATE = '''
         width: 100%;
         padding: 12px 16px;
         background: rgba(30, 30, 30, 0.6);
-        border: 2px solid rgba(102, 187, 106, 0.3);
+        border: 2px solid rgba(74, 158, 92, 0.3);
         border-radius: 8px;
         color: #f0f0f0;
         font-size: 1em;
@@ -165,10 +169,10 @@ HOMEPAGE_TEMPLATE = '''
     }
     .search-box input:focus {
         outline: none;
-        border-color: #66bb6a;
+        border-color: #4a9e5c;
     }
     .search-box input::placeholder {
-        color: #888;
+        color: #bbb;
     }
     .table-wrapper {
         background: rgba(30, 30, 30, 0.6);
@@ -185,7 +189,7 @@ HOMEPAGE_TEMPLATE = '''
         overflow: hidden;
     }
     th {
-        background: linear-gradient(135deg, #66bb6a 0%, #4a8a4e 100%);
+        background: linear-gradient(135deg, #4a9e5c 0%, #4a8a4e 100%);
         color: #fff;
         padding: 16px;
         text-align: left;
@@ -196,7 +200,7 @@ HOMEPAGE_TEMPLATE = '''
         position: relative;
     }
     th:hover {
-        background: linear-gradient(135deg, #81c784 0%, #5a9e5e 100%);
+        background: linear-gradient(135deg, #6aad6e 0%, #5a9e5e 100%);
     }
     th::after {
         content: ' ⇅';
@@ -216,15 +220,15 @@ HOMEPAGE_TEMPLATE = '''
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
     tr:hover td {
-        background: rgba(102, 187, 106, 0.1);
+        background: rgba(74, 158, 92, 0.1);
     }
     tr:last-child td {
         border-bottom: none;
     }
     td a {
-        color: #66bb6a;
+        color: #4a9e5c;
         text-decoration: none;
-        font-weight: 500;
+        font-weight: 700;
         transition: color 0.2s;
     }
     td a:hover {
@@ -233,12 +237,12 @@ HOMEPAGE_TEMPLATE = '''
     .progress-bar {
         background: rgba(255, 255, 255, 0.1);
         border-radius: 10px;
-        height: 24px;
+        height: 36px;
         overflow: hidden;
         position: relative;
     }
     .progress-fill {
-        background: linear-gradient(90deg, #66bb6a 0%, #a5d6a7 100%);
+        background: linear-gradient(90deg, #4a9e5c 0%, #7dbf80 100%);
         height: 100%;
         border-radius: 10px;
         transition: width 0.3s ease;
@@ -250,7 +254,7 @@ HOMEPAGE_TEMPLATE = '''
         font-size: 0.85em;
     }
     .timestamp {
-        color: #aaa;
+        color: #ccc;
         font-size: 0.95em;
     }
     .links-container {
@@ -261,7 +265,7 @@ HOMEPAGE_TEMPLATE = '''
         border-radius: 12px;
     }
     .links-container a {
-        color: #9e9e9e;
+        color: #ccc;
         text-decoration: none;
         margin: 0 20px;
         font-size: 1em;
@@ -270,12 +274,12 @@ HOMEPAGE_TEMPLATE = '''
         padding: 8px 0;
     }
     .links-container a:hover {
-        color: #66bb6a;
+        color: #4a9e5c;
     }
     .no-results {
         text-align: center;
         padding: 40px;
-        color: #888;
+        color: #bbb;
         font-size: 1.1em;
     }
 </style>
@@ -381,11 +385,12 @@ function filterTable() {
 
 def create_progress_graph(df, item_id):
     trace = Scatter(x=df['Timestamp'], y=df['ProgressPercentage'], mode='lines+markers', name='Progress',
-                    line=dict(color='#66bb6a'), marker=dict(color='#66bb6a'))
-    layout = Layout(title=dict(text=f'Progress Over Time - {item_id}', font=dict(color='#f0f0f0')),
+                    line=dict(color='#4a9e5c'), marker=dict(color='#4a9e5c'))
+    layout = Layout(
                     xaxis=dict(title='Time', color='#aaa', gridcolor='#444'),
                     yaxis=dict(title='Progress %', range=[0, 100], color='#aaa', gridcolor='#444'),
-                    paper_bgcolor='#1b1b1b', plot_bgcolor='#1b1b1b', font=dict(color='#f0f0f0'))
+                    paper_bgcolor='#1b1b1b', plot_bgcolor='#1b1b1b', font=dict(color='#f0f0f0'),
+                    height=700)
     fig = Figure(data=[trace], layout=layout)
     return plot(fig, output_type='div', include_plotlyjs='cdn')
 
@@ -409,7 +414,7 @@ def write_progress():
 
     table.put_item(Item={'ItemID': item_id, 'Timestamp': timestamp, 'ProgressPercentage': progress})
     response = table.query(KeyConditionExpression=boto3.dynamodb.conditions.Key('ItemID').eq(item_id))
-    items = sorted(response['Items'], key=lambda x: x['Timestamp'])
+    items = sorted(response['Items'], key=lambda x: x['Timestamp'], reverse=True)
 
     df = pd.DataFrame(items)
     df['Timestamp'] = pd.to_datetime(df['Timestamp'], format='ISO8601')
@@ -591,7 +596,7 @@ def update_all_pages():
 
     for item_id in item_ids:
         response = table.query(KeyConditionExpression=boto3.dynamodb.conditions.Key('ItemID').eq(item_id))
-        items = sorted(response['Items'], key=lambda x: x['Timestamp'])
+        items = sorted(response['Items'], key=lambda x: x['Timestamp'], reverse=True)
 
         df = pd.DataFrame(items)
         df['Timestamp'] = pd.to_datetime(df['Timestamp'], format='ISO8601')
